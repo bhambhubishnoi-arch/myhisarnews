@@ -1,4 +1,6 @@
 import { supabase } from "@/lib/supabase";
+import Link from "next/link";
+import Image from "next/image";
 
 type Article = {
   id: number;
@@ -51,20 +53,22 @@ export default async function SearchPage({
 
         <div className="mx-auto flex max-w-7xl items-center justify-between gap-5 px-5 py-4">
 
-          <a href="/" className="flex items-center">
-            <img
+          <Link href="/" className="flex items-center">
+            <Image
               src="/logo.jpeg"
               alt="MyHisarNews"
+              width={220}
+              height={80}
               className="h-20 w-auto object-contain"
             />
-          </a>
+          </Link>
 
-          <a
+          <Link
             href="/"
             className="rounded-lg bg-red-600 px-4 py-2 text-sm font-semibold text-white"
           >
             🏠 Home
-          </a>
+          </Link>
 
         </div>
 
@@ -156,7 +160,7 @@ export default async function SearchPage({
             </h2>
 
             <p className="mt-2 text-gray-500">
-              "{query}" से जुड़ी कोई published खबर नहीं मिली।
+              &quot;{query}&quot; से जुड़ी कोई published खबर नहीं मिली।
             </p>
 
           </div>
@@ -168,7 +172,7 @@ export default async function SearchPage({
             <div className="mb-6">
 
               <h2 className="text-2xl font-bold text-gray-900">
-                "{query}" के search results
+                &quot;{query}&quot; के search results
               </h2>
 
               <p className="mt-1 text-sm text-gray-500">
@@ -192,7 +196,7 @@ export default async function SearchPage({
 
                     <a href={`/news/${article.slug}`}>
 
-                      <img
+                      <Image
                         src={article.hero_image}
                         alt={article.title}
                         className="h-52 w-full object-cover"

@@ -39,3 +39,20 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# local backup files
+.phase9-15-backup-20260827-162411/
+.repair-backup-20260904-114311/
+*.backup.tsx
+*.backup.tsx.disabled
+*-backup.tsx
+*-backup.tsx.disabled
+
+# local middleware backup
+middleware.backup.ts
+
+# local audit
+myhisarnews-audit.txt
+
+# old disabled files
+*.disabled

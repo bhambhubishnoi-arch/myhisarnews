@@ -1,390 +1,382 @@
+import type { Metadata } from "next";
 import { supabase } from "@/lib/supabase";
+import Advertisement from "@/components/Advertisement";
+import Link from "next/link";
+import Image from "next/image";
 
-type Article = {
-  id: number;
-  title: string;
-  slug: string;
-  summary?: string | null;
-  hero_image?: string | null;
-  category?: string | null;
-  author?: string | null;
-  published_at?: string | null;
-  created_at?: string | null;
+type Props = {
+  params: Promise<{
+    slug: string;
+  }>;
 };
 
-export default async function HomePage() {
-  const {
-    data: articles,
-    error,
-  } = await supabase
+export async function generateMetadata(
+  { params }: Props
+): Promise<Metadata> {
+  const { slug } = await params;
+  const cleanSlug = decodeURIComponent(slug);
+
+  const { data: article } = await supabase
     .from("articles")
-    .select(
-      "id,title,slug,summary,hero_image,category,author,published_at,created_at"
-    )
+    .select("*")
+    .eq("slug", cleanSlug)
     .eq("status", "published")
-    .order("published_at", {
-      ascending: false,
-      nullsFirst: false,
+    .order("published_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  if (!article) {
+    return {
+      title: "News Not Found | MyHisarNews",
+      description: "यह खबर उपलब्ध नहीं है।",
+      robots: {
+        index: false,
+        follow: false,
+      },
+    };
+  }
+
+  const siteUrl =
+    process.env.NEXT_PUBLIC_SITE_URL || "https://myhisarnews.com";
+
+  const description =
+    article.seo_description ||
+    article.summary ||
+    `Read ${article.title} on MyHisarNews.`;
+
+  const keywords =
+    article.seo_keywords ||
+    article.tags ||
+    undefined;
+
+  const image =
+    article.hero_image || "/logo.jpeg";
+
+  return {
+    title: article.title,
+    description,
+    keywords,
+
+    alternates: {
+      canonical: `${siteUrl}/news/${article.slug}`,
+    },
+
+    openGraph: {
+      type: "article",
+      title: article.title,
+      description,
+      url: `${siteUrl}/news/${article.slug}`,
+      siteName: "MyHisarNews",
+      publishedTime: article.published_at || undefined,
+      authors: article.author
+        ? [article.author]
+        : ["MyHisarNews"],
+      images: [
+        {
+          url: image,
+          alt: article.title,
+        },
+      ],
+    },
+
+    twitter: {
+      card: "summary_large_image",
+      title: article.title,
+      description,
+      images: [image],
+    },
+
+    robots: {
+      index: true,
+      follow: true,
+    },
+  };
+}
+
+export default async function NewsDetail({ params }: Props) {
+  const { slug } = await params;
+
+  const cleanSlug = decodeURIComponent(slug);
+
+  const { data: article, error } = await supabase
+    .from("articles")
+    .select("*")
+    .eq("slug", cleanSlug)
+    .eq("status", "published")
+    .order("published_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  if (error) {
+    console.error("NEWS DETAIL ERROR:", error);
+  }
+
+  if (!article) {
+    return (
+      <main className="min-h-screen bg-gray-50 p-10">
+        <div className="mx-auto max-w-4xl rounded-xl bg-white p-8">
+          <h1 className="text-2xl font-bold">
+            News not found
+          </h1>
+
+          <p className="mt-3 text-gray-500">
+            यह खबर उपलब्ध नहीं है या अभी published नहीं हुई है।
+          </p>
+
+          <Link
+            href="/"
+            className="mt-6 inline-block rounded-lg bg-red-600 px-5 py-3 font-semibold text-white"
+          >
+            ← MyHisarNews Home
+          </Link>
+        </div>
+      </main>
+    );
+  }
+
+  const contentBlocks = Array.isArray(article.content_blocks)
+    ? article.content_blocks
+    : [];
+
+  function getYouTubeEmbedUrl(url: string) {
+    try {
+      const parsed = new URL(url);
+
+      if (parsed.hostname.includes("youtu.be")) {
+        const id = parsed.pathname.replace("/", "");
+        return id ? `https://www.youtube.com/embed/${id}` : url;
+      }
+
+      if (parsed.hostname.includes("youtube.com")) {
+        const videoId = parsed.searchParams.get("v");
+
+        if (videoId) {
+          return `https://www.youtube.com/embed/${videoId}`;
+        }
+
+        if (parsed.pathname.startsWith("/shorts/")) {
+          const id = parsed.pathname.split("/shorts/")[1];
+          return id ? `https://www.youtube.com/embed/${id}` : url;
+        }
+
+        if (parsed.pathname.startsWith("/embed/")) {
+          return url;
+        }
+      }
+    } catch {}
+
+    return url;
+  }
+
+  const currentViews = article.views || 0;
+
+  // Increase views
+  await supabase
+    .from("articles")
+    .update({
+      views: currentViews + 1,
     })
-    .limit(20);
+    .eq("id", article.id);
 
   return (
     <main className="min-h-screen bg-gray-50">
 
-      {/* ================= HEADER ================= */}
-      <header className="border-b bg-white">
-        <div className="mx-auto flex max-w-7xl items-center justify-between px-5 py-4">
-
-          {/* LOGO */}
-          <a
-            href="/"
-            className="flex items-center"
-          >
-            <img
-              src="/logo.jpeg"
-              alt="MyHisarNews"
-              className="h-20 w-auto object-contain"
-            />
-          </a>
-
-          {/* HOME */}
-          <a
-            href="/"
-            className="rounded-lg bg-red-600 px-4 py-2 text-sm font-semibold text-white"
-          >
-            🏠 Home
-          </a>
-
-        </div>
+      <header className="border-b bg-white px-5 py-5">
+        <Link
+          href="/"
+          className="text-2xl font-bold text-red-600"
+        >
+          MyHisarNews
+        </Link>
       </header>
 
-
-      {/* ================= HERO ================= */}
-      <section className="border-b bg-white">
-        <div className="mx-auto max-w-7xl px-5 py-8">
-
-          <h1 className="text-3xl font-bold text-gray-900 md:text-4xl">
-            देश-दुनिया की ताज़ा खबरें
-          </h1>
-
-          <p className="mt-2 text-gray-500">
-            भारत, हरियाणा, हिसार और दुनिया की हर बड़ी खबर
-          </p>
-
-        </div>
-      </section>
-
-
-      {/* ================= CATEGORIES ================= */}
-      <section className="border-b bg-white">
-
-        <div className="mx-auto max-w-7xl overflow-x-auto px-5 py-4">
-
-          <div className="flex min-w-max gap-3">
-
-            <a
-              href="/"
-              className="rounded-full bg-red-600 px-5 py-2 text-sm font-semibold text-white"
-            >
-              सभी खबरें
-            </a>
-
-            <a
-              href="/category/india"
-              className="rounded-full border px-5 py-2 text-sm font-medium text-gray-700 hover:bg-gray-100"
-            >
-              🇮🇳 भारत
-            </a>
-
-            <a
-              href="/category/haryana"
-              className="rounded-full border px-5 py-2 text-sm font-medium text-gray-700 hover:bg-gray-100"
-            >
-              हरियाणा
-            </a>
-
-            <a
-              href="/category/hisar"
-              className="rounded-full border px-5 py-2 text-sm font-medium text-gray-700 hover:bg-gray-100"
-            >
-              हिसार
-            </a>
-
-            <a
-              href="/category/politics"
-              className="rounded-full border px-5 py-2 text-sm font-medium text-gray-700 hover:bg-gray-100"
-            >
-              राजनीति
-            </a>
-
-            <a
-              href="/category/crime"
-              className="rounded-full border px-5 py-2 text-sm font-medium text-gray-700 hover:bg-gray-100"
-            >
-              🚨 क्राइम
-            </a>
-
-            <a
-              href="/category/business"
-              className="rounded-full border px-5 py-2 text-sm font-medium text-gray-700 hover:bg-gray-100"
-            >
-              💼 बिजनेस
-            </a>
-
-            <a
-              href="/category/sports"
-              className="rounded-full border px-5 py-2 text-sm font-medium text-gray-700 hover:bg-gray-100"
-            >
-              🏏 स्पोर्ट्स
-            </a>
-
-            <a
-              href="/category/entertainment"
-              className="rounded-full border px-5 py-2 text-sm font-medium text-gray-700 hover:bg-gray-100"
-            >
-              🎬 मनोरंजन
-            </a>
-
-            <a
-              href="/category/world"
-              className="rounded-full border px-5 py-2 text-sm font-medium text-gray-700 hover:bg-gray-100"
-            >
-              🌍 दुनिया
-            </a>
-
-            <a
-              href="/category/technology"
-              className="rounded-full border px-5 py-2 text-sm font-medium text-gray-700 hover:bg-gray-100"
-            >
-              💻 टेक्नोलॉजी
-            </a>
-
-            <a
-              href="/category/health"
-              className="rounded-full border px-5 py-2 text-sm font-medium text-gray-700 hover:bg-gray-100"
-            >
-              🩺 स्वास्थ्य
-            </a>
-
-            <a
-              href="/category/education"
-              className="rounded-full border px-5 py-2 text-sm font-medium text-gray-700 hover:bg-gray-100"
-            >
-              📚 शिक्षा
-            </a>
-
-            <a
-              href="/category/auto"
-              className="rounded-full border px-5 py-2 text-sm font-medium text-gray-700 hover:bg-gray-100"
-            >
-              🚗 ऑटो
-            </a>
-
-            <a
-              href="/category/weather"
-              className="rounded-full border px-5 py-2 text-sm font-medium text-gray-700 hover:bg-gray-100"
-            >
-              🌦️ मौसम
-            </a>
-
-          </div>
-
-        </div>
-
-      </section>
-
-
-      {/* ================= NEWS ================= */}
-      <section className="mx-auto max-w-7xl px-5 py-8">
-
-        {/* ERROR */}
-        {error ? (
-
-          <div className="rounded-xl bg-red-100 p-6 text-red-700">
-
-            <p className="text-lg font-bold">
-              News load नहीं हो पाई।
-            </p>
-
-            <p className="mt-2 break-words text-sm">
-              Error: {error.message}
-            </p>
-
-          </div>
-
-        ) : !articles ||
-          articles.length === 0 ? (
-
-          /* NO NEWS */
-          <div className="rounded-xl bg-white p-8 text-center shadow-sm">
-
-            <p className="text-lg font-semibold">
-              अभी कोई खबर प्रकाशित नहीं हुई है।
-            </p>
-
-            <p className="mt-2 text-sm text-gray-500">
-              जल्द ही नई खबरें यहाँ दिखाई देंगी।
-            </p>
-
-          </div>
-
-        ) : (
-
-          <>
-
-            {/* SECTION HEADER */}
-            <div className="mb-6 flex items-center justify-between">
-
-              <h2 className="text-2xl font-bold text-gray-900">
-                Latest News
-              </h2>
-
-              <span className="text-sm text-gray-500">
-                {articles.length} खबरें
-              </span>
-
-            </div>
-
-
-            {/* NEWS GRID */}
-            <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
-
-              {articles.map((article) => (
-
-                <article
-                  key={article.id}
-                  className="overflow-hidden rounded-2xl bg-white shadow-sm transition hover:-translate-y-1 hover:shadow-md"
-                >
-
-                  {/* IMAGE */}
-                  {article.hero_image ? (
-
-                    <a
-                      href={`/news/${article.slug}`}
-                    >
-
-                      <img
-                        src={article.hero_image}
-                        alt={article.title}
-                        className="h-52 w-full object-cover"
-                      />
-
-                    </a>
-
-                  ) : (
-
-                    <a
-                      href={`/news/${article.slug}`}
-                      className="flex h-52 w-full items-center justify-center bg-gray-200 text-gray-500"
-                    >
-                      MyHisarNews
-                    </a>
-
-                  )}
-
-
-                  {/* CARD */}
-                  <div className="p-5">
-
-                    {/* CATEGORY */}
-                    {article.category && (
-
-                      <div className="mb-3">
-
-                        <span className="rounded-full bg-red-100 px-3 py-1 text-xs font-semibold text-red-700">
-                          {article.category}
-                        </span>
-
-                      </div>
-
-                    )}
-
-
-                    {/* TITLE */}
-                    <h3 className="text-xl font-bold leading-7 text-gray-900">
-
-                      <a
-                        href={`/news/${article.slug}`}
-                        className="hover:text-red-600"
-                      >
-                        {article.title}
-                      </a>
-
-                    </h3>
-
-
-                    {/* SUMMARY */}
-                    {article.summary && (
-
-                      <p className="mt-3 line-clamp-3 text-sm leading-6 text-gray-600">
-                        {article.summary}
-                      </p>
-
-                    )}
-
-
-                    {/* META */}
-                    <div className="mt-5 flex items-center justify-between border-t pt-4 text-xs text-gray-500">
-
-                      <span>
-                        {article.author
-                          ? `✍️ ${article.author}`
-                          : "MyHisarNews"}
-                      </span>
-
-                      <span>
-                        {new Date(
-                          article.published_at ||
-                            article.created_at!
-                        ).toLocaleDateString(
-                          "hi-IN"
-                        )}
-                      </span>
-
-                    </div>
-
-
-                    {/* READ MORE */}
-                    <a
-                      href={`/news/${article.slug}`}
-                      className="mt-4 inline-block font-semibold text-red-600 hover:text-red-700"
-                    >
-                      पूरी खबर पढ़ें →
-                    </a>
-
-                  </div>
-
-                </article>
-
-              ))}
-
-            </div>
-
-          </>
-
+      <article className="mx-auto mt-6 max-w-4xl rounded-xl bg-white px-5 py-10">
+
+        {article.hero_image && (
+          <Image
+            src={article.hero_image}
+            alt={article.title}
+            className="mb-8 w-full rounded-xl"
+          />
         )}
 
-      </section>
+        <Advertisement
+          position="article_top"
+          className="my-8"
+        />
 
+        <div className="mb-4 text-sm font-semibold text-red-600">
+          {article.category}
+        </div>
 
-      {/* ================= FOOTER ================= */}
-      <footer className="mt-12 border-t bg-white">
+        <h1 className="text-4xl font-bold leading-tight text-gray-900">
+          {article.title}
+        </h1>
 
-        <div className="mx-auto max-w-7xl px-5 py-6 text-center text-sm text-gray-500">
+        <div className="mt-4 text-sm text-gray-500">
+          ✍️ {article.author || "MyHisarNews"}
+          {" | "}
+          👁️ {currentViews} views
+        </div>
 
-          <p>
-            © {new Date().getFullYear()} MyHisarNews.
-            All Rights Reserved.
+        {article.summary && (
+          <p className="mt-6 text-xl text-gray-600">
+            {article.summary}
           </p>
+        )}
 
-          <p className="mt-1">
-            भारत और दुनिया की हर बड़ी खबर
-          </p>
+        <Advertisement
+          position="article_middle"
+          className="my-8"
+        />
+
+        <div className="mt-8 space-y-6">
+
+          {contentBlocks.length > 0 ? (
+            contentBlocks.map((block: (typeof contentBlocks)[number], index: number) => {
+
+              if (block.type === "text") {
+                return (
+                  <p
+                    key={block.id || index}
+                    className="whitespace-pre-line text-lg leading-9 text-gray-800"
+                  >
+                    {block.content}
+                  </p>
+                );
+              }
+
+              if (block.type === "image") {
+                return (
+                  <figure key={block.id || index}>
+                    {block.url && (
+                      <Image
+                        src={block.url}
+                        alt={block.title || article.title}
+                        className="w-full rounded-xl"
+                      />
+                    )}
+
+                    {block.title && (
+                      <figcaption className="mt-2 text-center text-sm text-gray-500">
+                        {block.title}
+                      </figcaption>
+                    )}
+                  </figure>
+                );
+              }
+
+              if (block.type === "youtube") {
+                return (
+                  <div
+                    key={block.id || index}
+                    className="aspect-video overflow-hidden rounded-xl bg-black"
+                  >
+                    <iframe
+                      src={getYouTubeEmbedUrl(block.url || "")}
+                      className="h-full w-full"
+                      allowFullScreen
+                      title="YouTube video"
+                    />
+                  </div>
+                );
+              }
+
+              if (block.type === "instagram") {
+                return (
+                  <div
+                    key={block.id || index}
+                    className="rounded-xl border bg-white p-5"
+                  >
+                    <div className="mb-2 font-bold">
+                      📱 Instagram
+                    </div>
+
+                    {block.url && (
+                      <a
+                        href={block.url}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="break-all text-blue-600"
+                      >
+                        {block.url}
+                      </a>
+                    )}
+                  </div>
+                );
+              }
+
+              if (block.type === "facebook") {
+                return (
+                  <div
+                    key={block.id || index}
+                    className="rounded-xl border bg-white p-5"
+                  >
+                    <div className="mb-2 font-bold">
+                      📘 Facebook
+                    </div>
+
+                    {block.url && (
+                      <a
+                        href={block.url}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="break-all text-blue-600"
+                      >
+                        {block.url}
+                      </a>
+                    )}
+                  </div>
+                );
+              }
+
+              if (block.type === "embed") {
+                return (
+                  <div
+                    key={block.id || index}
+                    className="rounded-xl border bg-white p-5"
+                  >
+                    <p className="font-semibold">
+                      🔲 Embed
+                    </p>
+
+                    <p className="mt-2 text-sm text-gray-500">
+                      Embed content added
+                    </p>
+                  </div>
+                );
+              }
+
+              if (block.type === "external_link") {
+                return (
+                  <a
+                    key={block.id || index}
+                    href={block.url}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="block rounded-xl border bg-gray-50 p-4 font-semibold text-blue-600"
+                  >
+                    {block.title || block.url}
+                  </a>
+                );
+              }
+
+              return null;
+            })
+          ) : (
+            <div className="whitespace-pre-line text-lg leading-9 text-gray-800">
+              {article.body}
+            </div>
+          )}
 
         </div>
 
-      </footer>
+        <Advertisement
+          position="article_bottom"
+          className="my-8"
+        />
 
+      </article>
     </main>
   );
 }

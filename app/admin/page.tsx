@@ -1,137 +1,124 @@
 "use client";
 
+import { getUserRole } from "@/lib/getUserRole";
+import { createClient } from "@/lib/supabase/client";
 import { useEffect, useState } from "react";
-import { supabase } from "@/lib/supabase";
-import { useRouter } from "next/navigation";
+import Sidebar from "@/components/admin/Sidebar";
+import Header from "@/components/admin/Header";
+import StatCard from "@/components/admin/StatCard";
+import RecentActivity from "@/components/admin/RecentActivity";
+
+const supabaseAuth = createClient();
 
 export default function AdminDashboard() {
-  const router = useRouter();
-  const [userEmail, setUserEmail] = useState("");
-  const [checking, setChecking] = useState(true);
+  const [stats, setStats] = useState({
+    total: 0,
+    published: 0,
+    draft: 0,
+    views: 0,
+  });
 
   useEffect(() => {
-    async function checkUser() {
+    async function checkRole() {
       const {
         data: { user },
-      } = await supabase.auth.getUser();
+      } = await supabaseAuth.auth.getUser();
 
-      if (!user) {
-        router.replace("/admin/login");
+      if (user?.email) {
+        const userRole = await getUserRole();
+
+        console.log("USER ROLE:", userRole);
+      }
+    }
+
+    checkRole();
+  }, []);
+
+  useEffect(() => {
+    async function loadStats() {
+      const { data: articles, error } = await supabaseAuth
+        .from("articles")
+        .select("status, views");
+
+      if (error) {
+        console.log(error);
         return;
       }
 
-      setUserEmail(user.email || "");
-      setChecking(false);
+      console.log("DASHBOARD ARTICLES:", articles);
+
+      const total = articles?.length || 0;
+
+      const published =
+        articles?.filter(
+          (item) => item.status === "published"
+        ).length || 0;
+
+      const draft =
+        articles?.filter(
+          (item) => item.status === "draft"
+        ).length || 0;
+
+      const views =
+        articles?.reduce(
+          (sum, item) => sum + (item.views || 0),
+          0
+        ) || 0;
+
+      setStats({
+        total,
+        published,
+        draft,
+        views,
+      });
     }
 
-    checkUser();
-  }, [router]);
-
-  async function handleLogout() {
-    await supabase.auth.signOut();
-    router.replace("/admin/login");
-    router.refresh();
-  }
-
-  if (checking) {
-    return (
-      <main className="flex min-h-screen items-center justify-center">
-        <p>Loading Admin Panel...</p>
-      </main>
-    );
-  }
+    loadStats();
+  }, []);
 
   return (
-    <main className="min-h-screen bg-gray-100">
+    <main className="flex min-h-screen bg-gray-100">
+      <Sidebar />
 
-      {/* Header */}
-      <header className="border-b bg-white">
-        <div className="mx-auto flex max-w-7xl items-center justify-between px-6 py-4">
+      <div className="flex-1">
+        <Header />
 
-          <div>
-            <h1 className="text-2xl font-bold text-gray-900">
-              MyHisarNews
-            </h1>
+        <section className="p-6">
+          <h1 className="mb-6 text-3xl font-bold text-gray-900">
+            Welcome to MyHisarNews 👋
+          </h1>
 
-            <p className="text-sm text-gray-500">
-              Admin Dashboard
-            </p>
+          <div className="grid gap-6 md:grid-cols-2 xl:grid-cols-4">
+            <StatCard
+              title="Total News"
+              value={String(stats.total)}
+              icon="📰"
+            />
+
+            <StatCard
+              title="Published"
+              value={String(stats.published)}
+              icon="✅"
+            />
+
+            <StatCard
+              title="Draft"
+              value={String(stats.draft)}
+              icon="📝"
+            />
+
+            <StatCard
+              title="Total Views"
+              value={String(stats.views)}
+              icon="👁️"
+            />
           </div>
 
-          <button
-            onClick={handleLogout}
-            className="rounded-lg bg-red-600 px-4 py-2 text-sm font-semibold text-white hover:bg-red-700"
-          >
-            Logout
-          </button>
-
-        </div>
-      </header>
-
-      {/* Dashboard */}
-      <section className="mx-auto max-w-7xl px-6 py-8">
-
-        <div className="mb-8">
-          <h2 className="text-3xl font-bold text-gray-900">
-            Welcome, Admin 👋
-          </h2>
-
-          <p className="mt-2 text-gray-600">
-            {userEmail}
-          </p>
-        </div>
-
-        {/* Cards */}
-        <div className="grid gap-6 md:grid-cols-3">
-
-          <button
-            onClick={() => router.push("/admin/articles/new")}
-            className="rounded-xl bg-white p-6 text-left shadow-sm transition hover:shadow-md"
-          >
-            <div className="mb-4 text-4xl">📰</div>
-
-            <h3 className="text-xl font-bold">
-              New Article
-            </h3>
-
-            <p className="mt-2 text-sm text-gray-500">
-              नई खबर publish करें
-            </p>
-          </button>
-
-          <button
-            onClick={() => router.push("/admin/articles")}
-            className="rounded-xl bg-white p-6 text-left shadow-sm transition hover:shadow-md"
-          >
-            <div className="mb-4 text-4xl">📋</div>
-
-            <h3 className="text-xl font-bold">
-              All Articles
-            </h3>
-
-            <p className="mt-2 text-sm text-gray-500">
-              सभी खबरें देखें और manage करें
-            </p>
-          </button>
-
-          <div className="rounded-xl bg-white p-6 shadow-sm">
-
-            <div className="mb-4 text-4xl">⚙️</div>
-
-            <h3 className="text-xl font-bold">
-              Website
-            </h3>
-
-            <p className="mt-2 text-sm text-gray-500">
-              MyHisarNews Management
-            </p>
-
+          <div className="mt-8">
+            <RecentActivity />
           </div>
-
-        </div>
-
-      </section>
-
+        </section>
+      </div>
     </main>
   );
 }

@@ -1,16 +1,15 @@
 import { supabase } from "@/lib/supabase";
 
-type BreakingArticle = {
-  id: number;
-  title: string;
-  slug: string;
-};
-
 export default async function BreakingNews() {
   const { data: articles } = await supabase
     .from("articles")
-    .select("id,title,slug")
+    .select("id,title,slug,is_breaking,breaking_priority,breaking_until")
     .eq("status", "published")
+    .eq("is_breaking", true)
+    .order("breaking_priority", {
+      ascending: false,
+      nullsFirst: false,
+    })
     .order("published_at", {
       ascending: false,
       nullsFirst: false,

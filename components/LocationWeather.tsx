@@ -26,10 +26,51 @@ export default function LocationWeather() {
       try {
         const response = await fetch("https://ipapi.co/json/");
 
-        if (!response.ok) {
-          throw new Error("Location request failed");
-        }
+if (!response.ok) {
+  const fallback = {
+    city: "Hisar",
+    country_name: "India",
+    latitude: 29.1492,
+    longitude: 75.7217,
+  };
 
+  const data = fallback;
+
+  const latitude = Number(data.latitude);
+  const longitude = Number(data.longitude);
+
+  const locationData: LocationData = {
+    city: data.city,
+    country: data.country_name,
+    latitude,
+    longitude,
+  };
+
+  if (!mounted) return;
+
+  setLocation(locationData);
+
+  const weatherResponse = await fetch(
+    `https://api.open-meteo.com/v1/forecast` +
+      `?latitude=${latitude}` +
+      `&longitude=${longitude}` +
+      `&current=temperature_2m,weather_code` +
+      `&timezone=auto`
+  );
+
+  if (weatherResponse.ok) {
+    const weatherData = await weatherResponse.json();
+
+    if (!mounted) return;
+
+    setWeather({
+      temperature: weatherData.current.temperature_2m,
+      weatherCode: weatherData.current.weather_code,
+    });
+  }
+
+  return;
+}
         const data = await response.json();
 
         const latitude = Number(data.latitude);
